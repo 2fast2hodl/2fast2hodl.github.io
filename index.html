@@ -24,6 +24,8 @@
     <hr>
     <p>Share price: <p id="price"></p></p>
     <hr>
+    <p>Purchasable shares: <p id="purchasable"></p></p>
+    <hr>
     <p>Shares: <input type="text" value="0" id="shareInput"></input></p>
     <button class="btn" onclick="deposit()">Buy</button>
     <button class="btn" onclick="withdraw()">Sell</button>
@@ -94,12 +96,14 @@
     }
 
     async function update() {
-      console.log("Updating")
       window.shares = parseInt(await window._2f2h.methods.balanceOf(window.from).call());
       document.getElementById("shares").innerHTML = window.shares.toString();
       document.getElementById("total").innerHTML = await window._2f2h.methods.getTotalShares().call();
       window.price = await window._2f2h.methods.getSharePrice().call();
-      document.getElementById("price").innerHTML = unatomic(window.price, 18);
+      document.getElementById("price").innerHTML = unatomic(window.price, 18).substr(0, 5);
+
+      let sharePrice = web3.utils.toBN(window.price).mul(web3.utils.toBN(20)).div(web3.utils.toBN(19)).add(web3.utils.toBN(1));
+      document.getElementById("purchasable").innerHTML = web3.utils.toBN(await web3.eth.getBalance(window.from)).div(sharePrice).toString();
     }
 
     window.onload = async () => {
