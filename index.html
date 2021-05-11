@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+  <head>
+    <title>2fast2hodl</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+  </head>
+
+  <nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <a class="navbar-brand" href="/">2fast2hodl</a>
+      </div>
+      <ul class="nav navbar-nav">
+        <li><a href="https://github.com/2fast2hodl/contract">Contract Source</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <body>
+    <p class="lead">2fast2hodl is a strong hands smart contract. Anyone can buy shares, and you do so at just a 5% fee. This 5% is used to increase the share price, including the ones you have just bought! There is no dev fee and no premine. Selling shares lowers the amount of EGEM held by the contract, yet does NOT lower the share price. It can only go up!</p>
+    <p>Your shares: <p id="shares"></p></p>
+    <hr>
+    <p>Total shares: <p id="total"></p></p>
+    <hr>
+    <p>Share price: <p id="price"></p></p>
+    <hr>
+    <p>Shares: <input type="text" value="0" id="shareInput"></input></p>
+    <button class="btn" onclick="deposit()">Buy</button>
+    <button class="btn" onclick="withdraw()">Sell</button>
+  </body>
+
+  <style>
+    body {
+      padding-top: 50px;
+
+      margin-left: 10%;
+      margin-right: 10%;
+      text-align: center;
+    }
+  </style>
+
+  <script src="web3.min.js"></script>
+  <script>
+    const ABI = [{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"spender","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"person","type":"address"},{"indexed":false,"internalType":"uint256","name":"shares","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"sharePrice","type":"uint256"}],"name":"Deposit","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"person","type":"address"},{"indexed":false,"internalType":"uint256","name":"shares","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"sharePrice","type":"uint256"}],"name":"Withdraw","type":"event"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"subtractedValue","type":"uint256"}],"name":"decreaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"addedValue","type":"uint256"}],"name":"increaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"recipient","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"address","name":"recipient","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transferFrom","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"pure","type":"function"},{"inputs":[],"name":"initialDeposit","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[],"name":"getSharePrice","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getTotalShares","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"minShares","type":"uint256"}],"name":"deposit","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"shares","type":"uint256"}],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}];
+
+    const CONTRACT = "0x6A655d6e46e41dE1de310Dbd584f46f2f386a797";
+
+    const CHAIN_ID = 1987;
+
+    // Convert to a usable value
+    function atomic(value, decimals) {
+      let quantity = decimals;
+      if (value.indexOf(".") !== -1) {
+        quantity -= value.length - value.indexOf(".") - 1;
+      }
+      let atomicized = value.replace(".", "");
+      for (let i = 0; i < quantity; i++) {
+        atomicized += "0";
+      }
+      while (atomicized[0] === "0") {
+        atomicized = atomicized.substr(1);
+      }
+      return atomicized;
+    }
+
+    // Convert to a human readable value
+    function unatomic(value, decimals) {
+      value = value.padStart(decimals + 1, "0");
+      let temp = (
+        value.substr(0, value.length - decimals) +
+        "." +
+        value.substr(value.length - decimals)
+      );
+      while (temp[0] === "0") {
+        temp = temp.substr(1);
+      }
+      while (temp.endsWith("0")) {
+        temp = temp.slice(0, -1);
+      }
+      if (temp.endsWith(".")) {
+        temp = temp.slice(0, -1);
+      }
+      if (temp.startsWith(".")) {
+        temp = "0" + temp;
+      }
+      if (temp == "") {
+        return "0";
+      }
+      return temp;
+    }
+
+    async function update() {
+      console.log("Updating")
+      window.shares = parseInt(await window._2f2h.methods.balanceOf(window.from).call());
+      document.getElementById("shares").innerHTML = window.shares.toString();
+      document.getElementById("total").innerHTML = await window._2f2h.methods.getTotalShares().call();
+      window.price = await window._2f2h.methods.getSharePrice().call();
+      document.getElementById("price").innerHTML = unatomic(window.price, 18);
+    }
+
+    window.onload = async () => {
+      if (window.ethereum) {
+        if (parseInt(window.ethereum.chainId) != CHAIN_ID) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: `0x${CHAIN_ID.toString(16)}`,
+                chainName: 'EtherGem Mainnet',
+                nativeCurrency: {
+                  name: 'EGEM',
+                  symbol: 'EGEM',
+                  decimals: 18,
+                },
+                rpcUrls: ["https://lb.rpc.egem.io/"],
+                blockExplorerUrls: ['https://explorer.egem.io/']
+              },
+            ],
+          });
+        }
+
+        window.ethereum.on("accountsChanged", (accounts) => {
+          window.from = accounts[0];
+        });
+        window.from = (await window.ethereum.request({ method: "eth_requestAccounts" }))[0];
+
+        window.web3 = new Web3(window.ethereum);
+        if ((await web3.eth.getChainId()) != CHAIN_ID) {
+          alert("You must be on EtherGem to use 2fast2hodl.");
+        }
+
+        window._2f2h = new web3.eth.Contract(ABI, CONTRACT);
+        setInterval(update, 3000);
+        await update();
+      } else {
+        alert("Metamask is required.");
+      }
+    }
+
+    async function deposit() {
+      let buyShares = parseInt(document.getElementById("shareInput").value);
+      if ((buyShares === 0) || (buyShares !== buyShares)) {
+        alert("Invalid number to buy.");
+        return;
+      }
+      window._2f2h.methods.deposit(buyShares - 1).send({
+        value: web3.utils.toBN(window.price).mul(web3.utils.toBN(buyShares)).mul(web3.utils.toBN(20)).div(web3.utils.toBN(19)).add(web3.utils.toBN(1)),
+        from
+      });
+      await update();
+    }
+
+    async function withdraw() {
+      let sellShares = parseInt(document.getElementById("shareInput").value);
+      if ((sellShares === 0) || (sellShares !== sellShares)) {
+        alert("Invalid number to sell.");
+        return;
+      }
+      if (sellShares > window.shares) {
+        alert("Cannot sell more shares than you have.");
+        return;
+      }
+      await window._2f2h.methods.withdraw(sellShares).send({from});
+      await update();
+    }
+  </script>
+</html>
